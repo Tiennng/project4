@@ -2,7 +2,11 @@
  * Program:      Project 4 Template
  * Authors:     Robert Freeman
  * Date:        11/07/2024
- * This is a guide that you can use to write your project 4 code
+ * Description: This project leverages the Basys MX3 microcontroller to power a robot designed to race against multiple competitors.
+ *              It incorporates new configurations and functions to optimize control, time tracking, and motor activation, contributing 
+ *              to a competitive robot capable of racing against others in the challenge.
+
+ * 
 ==============================================================================*/
 /*-------------- Board system settings. PLEASE DO NOT MODIFY THIS PART ----------*/
 #ifndef _SUPPRESS_PLIB_WARNING          //suppress the plib warning during compiling
@@ -60,7 +64,7 @@ void CNConfig();
 int main(void) {
     intializePorts();
     pwmConfig();
-    
+    LCD_WriteStringAtPos("Group 16",0,0);
     while (TRUE) {
         //PS.. It might be a good idea to put this function in a timer ISR later on.
         LED();
@@ -254,45 +258,45 @@ void pwmConfig() {
 
 void timer2_init() {
 /* Make sure vector interrupts is disabled prior to configuration */
-macro_disable_interrupts;
-T2CONbits.ON = 0; // Turn off Timer 2 during configuration
-T2CONbits.TCKPS = 0b111; // Prescaler 1:256
-T2CONbits.TCS = 0; // Use internal PBCLK
-TMR2 = 0; // Clear Timer 2 register
-// this pre register is getting the period register.
-// 10,000,000/256 = 39063 hz which then / period register makes 1hz which is
-// one second
-PR2 = (10000000 / (256*4)); // set at quater of a second
-// PRx=PBCLK/(timer prescaler*timer frequency)
-IPC2bits.T2IP = 4; // Interrupt priority
-IPC2bits.T2IS = 0; // Interrupt subpriority
-IFS0bits.T2IF = 0; // Clear interrupt flag
-IEC0bits.T2IE = 1; // Enable Timer 2 interrupt
-T2CONbits.ON = 1; // Turn on Timer 2
-macro_enable_interrupts(); // enable interrupts at CPU
+    macro_disable_interrupts;
+    T2CONbits.ON = 0; // Turn off Timer 2 during configuration
+    T2CONbits.TCKPS = 0b111; // Prescaler 1:256
+    T2CONbits.TCS = 0; // Use internal PBCLK
+    TMR2 = 0; // Clear Timer 2 register
+    // this pre register is getting the period register.
+    // 10,000,000/256 = 39063 hz which then / period register makes 1hz which is
+    // one second
+    PR2 = (10000000 / (256*4)); // set at quater of a second
+    // PRx=PBCLK/(timer prescaler*timer frequency)
+    IPC2bits.T2IP = 4; // Interrupt priority
+    IPC2bits.T2IS = 0; // Interrupt subpriority
+    IFS0bits.T2IF = 0; // Clear interrupt flag
+    IEC0bits.T2IE = 1; // Enable Timer 2 interrupt
+    T2CONbits.ON = 1; // Turn on Timer 2
+    macro_enable_interrupts(); // enable interrupts at CPU
 
 }
 
 void timer3_init() {
 /* Make sure vector interrupts is disabled prior to configuration */
-macro_disable_interrupts;
-T3CONbits.ON = 0; // turn off Timer3
-OC1CONbits.ON = 0; // Turn off OC1
-/* The following code sets up the alarm timer and interrupts */
-tris_A_OUT = 0;
-rp_A_OUT = 0x0C; // 1100 = OC1
-// disable analog (set pins as digital)
-ansel_A_OUT = 0;
-T3CONbits.TCKPS = 0b1; //1:1 prescale value
-T3CONbits.TGATE = 0; //not gated input (the default)
-T3CONbits.TCS = 0; //PCBLK input (the default)
-OC1CONbits.ON = 0; // Turn off OC1 while doing setup.
-OC1CONbits.OCM = 6; // PWM mode on OC1; Fault pin is disabled
-OC1CONbits.OCTSEL = 1; // Timer3 is the clock source for this Output Compare
-//module
-IPC3bits.T3IP = 7; // interrupt priority
-IPC3bits.T3IS = 3; // interrupt subpriority
-macro_enable_interrupts(); // enable interrupts at CPU
+    macro_disable_interrupts;
+    T3CONbits.ON = 0; // turn off Timer3
+    OC1CONbits.ON = 0; // Turn off OC1
+    /* The following code sets up the alarm timer and interrupts */
+    tris_A_OUT = 0;
+    rp_A_OUT = 0x0C; // 1100 = OC1
+    // disable analog (set pins as digital)
+    ansel_A_OUT = 0;
+    T3CONbits.TCKPS = 0b1; //1:1 prescale value
+    T3CONbits.TGATE = 0; //not gated input (the default)
+    T3CONbits.TCS = 0; //PCBLK input (the default)
+    OC1CONbits.ON = 0; // Turn off OC1 while doing setup.
+    OC1CONbits.OCM = 6; // PWM mode on OC1; Fault pin is disabled
+    OC1CONbits.OCTSEL = 1; // Timer3 is the clock source for this Output Compare
+    //module
+    IPC3bits.T3IP = 7; // interrupt priority
+    IPC3bits.T3IS = 3; // interrupt subpriority
+    macro_enable_interrupts(); // enable interrupts at CPU
 }
 
 
@@ -359,16 +363,16 @@ IEC1bits.CNDIE = 1;
 }
 void CNConfig() {
 /* Make sure vector interrupts is disabled prior to configuration */
-macro_disable_interrupts;
-// Complete the following configuration of CN interrupts, then uncomment them
-CNCONDbits.ON = 1; //all port D pins to trigger CN interrupts
-CNEND = 0x0F00; //configure PORTD pins 8-11 as CN pins
-CNPUD = 0x0F00; //enable pullups on PORTD pins 8-11
-IPC8bits.CNIP = 5; // set CN priority to 5
-IPC8bits.CNIS = 3; // set CN sub-priority to 3
-IFS1bits.CNDIF = 0; //Clear interrupt flag status bit
-IEC1bits.CNDIE = 1 ; //Enable CN interrupt on port D
-macro_enable_interrupts(); // re-enable interrupts
+    macro_disable_interrupts;
+    // Complete the following configuration of CN interrupts, then uncomment them
+    CNCONDbits.ON = 1; //all port D pins to trigger CN interrupts
+    CNEND = 0x0F00; //configure PORTD pins 8-11 as CN pins
+    CNPUD = 0x0F00; //enable pullups on PORTD pins 8-11
+    IPC8bits.CNIP = 5; // set CN priority to 5
+    IPC8bits.CNIS = 3; // set CN sub-priority to 3
+    IFS1bits.CNDIF = 0; //Clear interrupt flag status bit
+    IEC1bits.CNDIE = 1 ; //Enable CN interrupt on port D
+    macro_enable_interrupts(); // re-enable interrupts
 }
 
 
