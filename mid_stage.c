@@ -1,6 +1,6 @@
 /*===================================CPEG222====================================
  * Program:      Project 4 Template
- * Authors:     Tien and Justin
+ * Authors:     Robert Freeman
  * Date:        11/07/2024
  * This is a guide that you can use to write your project 4 code
 ==============================================================================*/
@@ -35,37 +35,66 @@
 #include "ssd.h"
 #include "lcd.h"
 #include "swt.h"
+#include "srv.h"
+
+
+
+
+#include <stdlib.h>
+
+
+
+
+#include "utils.h"
+
 
 // Function Declarations
 void intializePorts();
 void pwmConfig();
 void activateServo();
-int clock_times[4] = {0,0,0,0};//array to store current time
+void timer2_init();
+void timer3_init();
+void CNConfig();
 
 
 int main(void) {
     intializePorts();
     pwmConfig();
-    LCD_WriteStringAtPos("Team: 16",0,0);
     
-//    LCD_WriteStringAtPos("FWD          FWD",1,0);
     while (TRUE) {
         //PS.. It might be a good idea to put this function in a timer ISR later on.
-       
-       
-            IncrementTime();
-         SSD();
         LED();
+        IncrementTime();
+        SSD();
         activateServo();
     }
 }
-void delay_ms(int milliseconds){
-    int i;
-    for (i = 0; i < milliseconds * LOOPS_NEEDED_TO_DELAY_ONE_MS; i++){
-        
-    }
-}
 
+
+
+
+
+
+// Initialize ports on board
+void intializePorts() {
+    LED_Init();
+    SRV_Init();
+    LCD_Init();
+    SSD_Init();
+    SWT_Init();
+    timer2_init();
+    timer3_init();
+    CNConfig();
+    DDPCONbits.JTAGEN = 0; 
+    TRISA &= 0xFF00;
+    LATA &= 0xFF00; 
+    // Initialize SW6
+TRISBbits.TRISB10 = 1; 
+ANSELBbits.ANSB10 = 0; 
+// Initialize SW7
+TRISBbits.TRISB9 = 1; 
+ANSELBbits.ANSB9 = 0; 
+}
 void LED(void) {
    //RIGHT WHEEL
     if (SWT_GetValue(0) == 0 && SWT_GetValue(1) == 0) {
@@ -112,27 +141,7 @@ void LED(void) {
         LATA &= ~(0xF0);    
     }
 }
-
-    
-
-// Initialize ports on board
-void intializePorts() {
-    DDPCONbits.JTAGEN = 0; 
-    
-    /* 
-    The following line sets the tristate of Port A bits 0-7 to 0. The LEDs are 
-    connected to those pins. When the tristate of a pin is set low, the pin is 
-    configured as a digital output. Notice an &= is used in conjunction with
-    leading 1s (the FF) in order to keep the other bits of Port A (8-15) in
-    their current state. 
-    */
-    TRISA &= 0xFF00;
-    LED_Init();
-    LCD_Init();
-    SSD_Init();
-    SWT_Init();
-    
-}
+int clock_times[4] = {0,0,0,0};//array to store current time
 
 void IncrementTime() {
     
@@ -192,15 +201,19 @@ void SSD() {
     delay_ms(100); // Adjust as needed
 
 }
-
-
+void delay_ms(int milliseconds){
+    int i;
+    for (i = 0; i < milliseconds * LOOPS_NEEDED_TO_DELAY_ONE_MS; i++){
+        
+    }
+}
 
 void pwmConfig() {
     
     // configure Timer X (select the timer, replace X with desired timer number)
 
-    PR2 = 9999; //Period Register.
-    T2CONbits.TCKPS = 0; //Timer Prescaler 
+    PR2 = 24999; //Period Register.
+    T2CONbits.TCKPS = 3; //Timer Prescaler 
     T2CONbits.TGATE = 0; // not gated input (the default)
     T2CONbits.TCS = 0; // PBCLK input (the default)
     T2CONbits.ON = 1;  //Turn on Timer
@@ -216,14 +229,14 @@ void pwmConfig() {
     
     OC4CONbits.OCM = 6;      // PWM mode on OC4; Fault pin is disabled
     OC4CONbits.OCTSEL = 0;   // Select the timer to use as a clock source
-    OC4RS =  PR2/2;//OC4RS is some fraction of the Period
+    OC4RS =  18750;//OC4RS is some fraction of the Period
     OC4R = OC4RS;
     OC4CONbits.ON = 1;       // Start the OC4 module
     
     //Do The same for OC5**************************
     OC5CONbits.OCM = 6;      // PWM mode on OC5; Fault pin is disabled
     OC5CONbits.OCTSEL = 0;   // Select the timer to use as a clock source
-    OC5RS =  PR2/2;//OC5RS is some fraction of the Period
+    OC5RS =  18750;//OC5RS is some fraction of the Period
     OC5R = OC5RS;
     OC5CONbits.ON = 1;       // Start the OC5 module
    
@@ -237,6 +250,49 @@ void pwmConfig() {
     
 
     //Set up additional timers here if necessary
+}
+
+void timer2_init() {
+/* Make sure vector interrupts is disabled prior to configuration */
+macro_disable_interrupts;
+T2CONbits.ON = 0; // Turn off Timer 2 during configuration
+T2CONbits.TCKPS = 0b111; // Prescaler 1:256
+T2CONbits.TCS = 0; // Use internal PBCLK
+TMR2 = 0; // Clear Timer 2 register
+// this pre register is getting the period register.
+// 10,000,000/256 = 39063 hz which then / period register makes 1hz which is
+// one second
+PR2 = (10000000 / (256*4)); // set at quater of a second
+// PRx=PBCLK/(timer prescaler*timer frequency)
+IPC2bits.T2IP = 4; // Interrupt priority
+IPC2bits.T2IS = 0; // Interrupt subpriority
+IFS0bits.T2IF = 0; // Clear interrupt flag
+IEC0bits.T2IE = 1; // Enable Timer 2 interrupt
+T2CONbits.ON = 1; // Turn on Timer 2
+macro_enable_interrupts(); // enable interrupts at CPU
+
+}
+
+void timer3_init() {
+/* Make sure vector interrupts is disabled prior to configuration */
+macro_disable_interrupts;
+T3CONbits.ON = 0; // turn off Timer3
+OC1CONbits.ON = 0; // Turn off OC1
+/* The following code sets up the alarm timer and interrupts */
+tris_A_OUT = 0;
+rp_A_OUT = 0x0C; // 1100 = OC1
+// disable analog (set pins as digital)
+ansel_A_OUT = 0;
+T3CONbits.TCKPS = 0b1; //1:1 prescale value
+T3CONbits.TGATE = 0; //not gated input (the default)
+T3CONbits.TCS = 0; //PCBLK input (the default)
+OC1CONbits.ON = 0; // Turn off OC1 while doing setup.
+OC1CONbits.OCM = 6; // PWM mode on OC1; Fault pin is disabled
+OC1CONbits.OCTSEL = 1; // Timer3 is the clock source for this Output Compare
+//module
+IPC3bits.T3IP = 7; // interrupt priority
+IPC3bits.T3IS = 3; // interrupt subpriority
+macro_enable_interrupts(); // enable interrupts at CPU
 }
 
 
@@ -255,45 +311,100 @@ void __ISR(_TIMER_3_VECTOR) Timer3ISR(void) {
     IEC0bits.T3IE = 1; // enable interrupt
 }
 
+void __ISR(_CHANGE_NOTICE_VECTOR) CN_Handler(void) {
+// 1. Disable CN interrupts
+IEC1bits.CNDIE = 0;
+// 2. Debounce keys for 10ms
+
+for (int a=0; a<1426; a++) {}
+if (SWT_GetValue(0) == 0 && SWT_GetValue(1) == 0) {
+        LCD_WriteStringAtPos("STP",1,13);
+        LATA &= ~0x0F; // Clear bits 0 to 3 (turn off LEDs 0, 1, 2, 3)
+    }
+    //This is supposed to turn on leds 2 and 3
+     if (SWT_GetValue(0) == 1 && SWT_GetValue(1) == 0) {
+         LCD_WriteStringAtPos("FWD",1,13);
+        LATA |= (1 << 2) | (1 << 3); // Set bits 2 and 3 (turn on LEDs 2 and 3)
+    }
+    //this is supposed to turn on leds 0 and 1
+     if (SWT_GetValue(1) == 1 && SWT_GetValue(0) == 0) {
+         LCD_WriteStringAtPos("REV",1,13);
+        LATA |= 0x02; ;
+  // turn off leds 3-0
+    }
+    if (SWT_GetValue(1) && SWT_GetValue(0)) {
+         LCD_WriteStringAtPos("STP",1,13);
+         LATA &= ~((1 << 0) | (1 << 1) | (1 << 2) | (1 << 3));
+    }
+        
+    
+   if (SWT_GetValue(6) && SWT_GetValue(7)){
+        LCD_WriteStringAtPos("STP",1,0);
+        LATA |= (1 << 2) | (1 << 3);
+    }
+    else if (SWT_GetValue(7) && SWT_GetValue(6) == 0){
+        LCD_WriteStringAtPos("REV",1,0);
+    }
+    else if (SWT_GetValue(6) && SWT_GetValue(7) == 0){
+        LCD_WriteStringAtPos("FWD",1,0);
+    }
+    else{
+        LCD_WriteStringAtPos("STP",1,0);
+
+IFS1bits.CNDIF = 0;
+// 6. Reenable CN interrupts
+IEC1bits.CNDIE = 1;
+
+}
+}
+void CNConfig() {
+/* Make sure vector interrupts is disabled prior to configuration */
+macro_disable_interrupts;
+// Complete the following configuration of CN interrupts, then uncomment them
+CNCONDbits.ON = 1; //all port D pins to trigger CN interrupts
+CNEND = 0x0F00; //configure PORTD pins 8-11 as CN pins
+CNPUD = 0x0F00; //enable pullups on PORTD pins 8-11
+IPC8bits.CNIP = 5; // set CN priority to 5
+IPC8bits.CNIS = 3; // set CN sub-priority to 3
+IFS1bits.CNDIF = 0; //Clear interrupt flag status bit
+IEC1bits.CNDIE = 1 ; //Enable CN interrupt on port D
+macro_enable_interrupts(); // re-enable interrupts
+}
+
 
 void activateServo(){
     //left
         if((SWT_GetValue(0) == 0 && SWT_GetValue(1) == 0) || (SWT_GetValue(0) == 1 && SWT_GetValue(1) == 1)){
             //stop right mot
             SRV_SetPulseMicroseconds0(0);
-            LCD_WriteStringAtPos("STP",1,13);
-            //right = 0x0;
+                        //right = 0x0;
         }
         else if (SWT_GetValue(0) == 1 && SWT_GetValue(1) == 0){
             //right mot forward
             SRV_SetPulseMicroseconds0(300);
             //right = 0b1100;
-            LCD_WriteStringAtPos("FWD",1,13);
+            
         }
         else if (SWT_GetValue(0) == 0 && SWT_GetValue(1) == 1){
             //right mot reverse
             SRV_SetPulseMicroseconds0(540);
             //right = 0b0011;
-            LCD_WriteStringAtPos("REV",1,13);
         }
        
         if ((SWT_GetValue(6) == 0 && SWT_GetValue(7) == 0) || (SWT_GetValue(6) == 1 && SWT_GetValue(7) == 1)){
             //stop left mot
             SRV_SetPulseMicroseconds1(0);
-            LCD_WriteStringAtPos("STP",1,0);
             //left = 0x00;
         }    
         else if (SWT_GetValue(6) == 1 && SWT_GetValue(7) == 0){
             //Left mot forward
             SRV_SetPulseMicroseconds1(540);
             //left = 0b00110000;
-            LCD_WriteStringAtPos("FWD",1,0);
         }
         else if (SWT_GetValue(6) == 0 && SWT_GetValue(7) == 1){
             //Left mot backwards
             SRV_SetPulseMicroseconds1(300);
             //left = 0b11000000;
-            LCD_WriteStringAtPos("REV",1,0);
         }
         
     }
