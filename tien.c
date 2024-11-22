@@ -268,13 +268,13 @@ void activateServo(){
         }
         else if (SWT_GetValue(0) == 1 && SWT_GetValue(1) == 0){
             //right mot forward
-            SRV_SetPulseMicroseconds0(300);
+            SRV_SetPulseMicroseconds0(1000);
             //right = 0b1100;
             LCD_WriteStringAtPos("FWD",1,13);
         }
         else if (SWT_GetValue(0) == 0 && SWT_GetValue(1) == 1){
             //right mot reverse
-            SRV_SetPulseMicroseconds0(540);
+            SRV_SetPulseMicroseconds0(300);
             //right = 0b0011;
             LCD_WriteStringAtPos("REV",1,13);
         }
@@ -287,7 +287,7 @@ void activateServo(){
         }    
         else if (SWT_GetValue(6) == 1 && SWT_GetValue(7) == 0){
             //Left mot forward
-            SRV_SetPulseMicroseconds1(540);
+            SRV_SetPulseMicroseconds1(1000);
             //left = 0b00110000;
             LCD_WriteStringAtPos("FWD",1,0);
         }
