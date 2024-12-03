@@ -65,6 +65,11 @@
 int micVal, micNum = 0;           // value read from the microphone input; greatest value of a given number of micVal values
 int clapcount, claptimer = 0;     // clapcount keeps track of how many claps the system has heard. After 11 ticks of claptimer
                                   // @100ms/tick courtesy of the core timer, resets the clapcount to 0.
+int pval, pvalSum = 0;            // pval stores the input signals from the Pmod one at a time, then shifts the bits 0-3times to the left
+                                  //pvalSum is the result of adding the shifted pval bits, resulting in a 4bit binary number
+                                  // this number is used by the "MOTOR_Stuff()" function to control the direction of the wheels
+int RED, GRN, BLU = 0;            // Used for setting the RGB led
+
 // Function Declarations
 void intializePorts();
 void pwmConfig();
@@ -74,7 +79,7 @@ void timer3_init();
 void CNConfig();
 void CheckLightDetection();
 void MIC_Stuff(); 
-
+void Motor_Stuff;
 
 int main(void) {
     
@@ -85,24 +90,25 @@ int main(void) {
 
     while (TRUE) {
         //PS.. It might be a good idea to put this function in a timer ISR later on.
-        if (clapcount <= 1 ){ // ready mode, looknig for claps.
-        micVal = MIC_Val();
-        MIC_Stuff();
-        if (micNum > 0x3F) {
-                
-            clapcount++;
-            LATA |= 0xFF;
-            delay_ms(50);
-            LATA &= 0x00;
-            
-        }
+//        while (clapcount <= 1 ){ // ready mode, looknig for claps.
+//        micVal = MIC_Val();
+//        MIC_Stuff();
+//        if (micNum > 0x3F) {
+//                
+//            clapcount++;
+//            LATA |= 0xFF;
+//            delay_ms(50);
+//            LATA &= 0x00;
+//            
+//        }
+//        clapcount=0;
 
         
-//        CheckLightDetection();
-//        LED();
-//        IncrementTime();
-//        SSD();
-//        activateServo();
+        CheckLightDetection();
+        LED();
+        IncrementTime();
+        SSD();
+        activateServo();
         
     }
 }
@@ -458,7 +464,7 @@ void CNConfig() {
 
 
 
-\
+
 void activateServo(){
     //left
         if((SWT_GetValue(0) == 0 && SWT_GetValue(1) == 0) || (SWT_GetValue(0) == 1 && SWT_GetValue(1) == 1)){
@@ -468,13 +474,13 @@ void activateServo(){
         }
         else if (SWT_GetValue(0) == 1 && SWT_GetValue(1) == 0){
             //right mot forward
-            SRV_SetPulseMicroseconds0(1500);
-            //right = 0b1100;
+            SRV_SetPulseMicroseconds0(1160);
+            //right = 0b1100
             
         }
         else if (SWT_GetValue(0) == 0 && SWT_GetValue(1) == 1){
             //right mot reverse
-            SRV_SetPulseMicroseconds0(300);
+            SRV_SetPulseMicroseconds0(1165);
             //right = 0b0011;
         }
        
@@ -485,12 +491,12 @@ void activateServo(){
         }    
         else if (SWT_GetValue(6) == 1 && SWT_GetValue(7) == 0){
             //Left mot forward
-            SRV_SetPulseMicroseconds1(1500);
+            SRV_SetPulseMicroseconds1(2400);
             //left = 0b00110000;
         }
         else if (SWT_GetValue(6) == 0 && SWT_GetValue(7) == 1){
             //Left mot backwards
-            SRV_SetPulseMicroseconds1(300);
+            //SRV_SetPulseMicroseconds1(300);
             //left = 0b11000000;
         }
         
@@ -541,4 +547,76 @@ void MIC_Stuff() {            // Compares all values of micVal, finding the high
         }
     }
     
+}
+
+void Motor_Stuff() {
+    unsigned int pvalSum = 0; // Initialize pvalSum to 0
+    int j;
+
+    // Loop through the sensor values and calculate pvalSum
+    for (j = 0; j < 4; j++) {
+        pvalSum += PMODS_GetValue(1, j + 1) << j;
+    }
+
+    // Reset LED colors
+    RED = BLU = GRN = 0;
+
+    // Motor control logic based on pvalSum
+    if (pvalSum == 0x0) {
+        // Stop (both motors stopped)
+        SRV_SetPulseMicroseconds0(0);  // Right motor stop
+        SRV_SetPulseMicroseconds1(0);  // Left motor stop
+        RED = 255;  // Indicating stop state
+    }
+    else if (pvalSum == 0xE) {
+        // Pivot (both motors at slow speed)
+        SRV_SetPulseMicroseconds0(1140);  // Right motor slow
+        SRV_SetPulseMicroseconds1(2400);  // Left motor slow
+        BLU = GRN = 255;  // Indicating pivot state
+    }
+    else if (pvalSum == 0xC) {
+        // Stop one wheel, keep the other at full speed (right motor stopped)
+        SRV_SetPulseMicroseconds0(0);    // Right motor stop
+        SRV_SetPulseMicroseconds1(1500); // Left motor full speed
+        BLU = GRN = 255;  // Indicating one wheel full speed
+    }
+    else if (pvalSum == 0x8) {
+        // One wheel full speed, one half speed (right motor full, left motor half)
+        SRV_SetPulseMicroseconds0(100);  // Right motor full speed
+        SRV_SetPulseMicroseconds1(2400); // Left motor half speed
+        BLU = GRN = 255;  // Indicating full/half speed state
+    }
+    else if (pvalSum == 0x9) {
+        // Move straight (both motors at full speed)
+        SRV_SetPulseMicroseconds0(100);  // Right motor full speed
+        SRV_SetPulseMicroseconds1(1500); // Left motor full speed
+        BLU = 255;  // Indicating straight movement
+    }
+    else if (pvalSum == 0xF) {
+        // Reverse (left motor full speed, right motor reverse)
+        SRV_SetPulseMicroseconds0(1160); // Right motor reverse (very slow)
+        SRV_SetPulseMicroseconds1(1500); // Left motor full speed
+        BLU = 255;  // Indicating reverse state
+    }
+    else if (pvalSum == 0x7) {
+        // Pivot (both motors at full speed)
+        SRV_SetPulseMicroseconds0(100);  // Right motor full speed
+        SRV_SetPulseMicroseconds1(1500); // Left motor full speed
+        BLU = GRN = 255;  // Indicating pivot state
+    }
+    else if (pvalSum == 0x3) {
+        // One wheel stopped, one wheel full speed (right motor stopped)
+        SRV_SetPulseMicroseconds0(0);    // Right motor stop
+        SRV_SetPulseMicroseconds1(1500); // Left motor full speed
+        BLU = GRN = 255;  // Indicating full/stop state
+    }
+    else if (pvalSum == 0x1) {
+        // One wheel full speed, one half speed (right motor full, left motor half)
+        SRV_SetPulseMicroseconds0(100);  // Right motor full speed
+        SRV_SetPulseMicroseconds1(2400); // Left motor half speed
+        BLU = GRN = 255;  // Indicating full/half speed state
+    }
+
+    // Update the RGB LED colors based on the state
+    RGBLED_SetValue(RED, GRN, BLU);
 }
