@@ -435,8 +435,8 @@
             SRV_SetPulseMicroseconds1(1500);
         }
         else if (LED1 == 0 && LED2 == 1 && LED3 == 1 && LED4 == 1){
-            SRV_SetPulseMicroseconds0(0);
-            SRV_SetPulseMicroseconds1(1500);
+            SRV_SetPulseMicroseconds0(100);
+            SRV_SetPulseMicroseconds1(0);
         }
         else if (LED1 == 1 && LED2 == 0 && LED3 == 0 && LED4 == 0){
             SRV_SetPulseMicroseconds0(100);
@@ -466,12 +466,12 @@
         }
         else if (LED1 == 1 && LED2 == 1 && LED3 == 1 && LED4 == 0){
             SRV_SetPulseMicroseconds0(100);
-            SRV_SetPulseMicroseconds1(0);
-        }
-        else if (LED1 == 1 && LED2 == 1 && LED3 == 1 && LED4 == 1){
-            SRV_SetPulseMicroseconds0(0);
             SRV_SetPulseMicroseconds1(1500);
         }
+//        else if (LED1 == 1 && LED2 == 1 && LED3 == 1 && LED4 == 1){
+//            SRV_SetPulseMicroseconds0(0);
+//            SRV_SetPulseMicroseconds1(1500);
+//        }
 //        else {
 //            SRV_SetPulseMicroseconds0(1500);
 //            SRV_SetPulseMicroseconds1(100);
